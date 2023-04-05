@@ -1,0 +1,229 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>单词速记</title>
+	<link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">
+	<script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
+	<script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+	<script>
+		let wordData = [];
+		let focusWord = null;
+
+		function wordVoiceUrl(word) {
+			return "http://dict.youdao.com/dictvoice?type=0&audio=" + word;
+		}
+
+		function setFocusWord(word) {
+			if (focusWord) {
+				focusWord.reset();
+			}
+			focusWord = word;
+			focusWord.select();
+		}
+
+
+
+		class Word {
+
+			constructor(manager, index, english, chinese) {
+				this.manager = manager;
+				this.index = index;
+				this.english = english
+				this.chinese = chinese
+				if (this.chinese.startsWith('"') && this.chinese.endsWith('"')) {
+					this.chinese = this.chinese.substr(1, this.chinese.length - 2);
+				}
+				this.word = null;
+				this.interpretation = null;
+			}
+
+			generate() {
+				const row = $('<tr>');
+				const index = $('<td>');
+				index.text("\xa0\xa0\xa0\xa0"+(this.index + 1)+"\xa0\xa0\xa0\xa0");
+				row.append(index);
+				const word = $('<td>');
+				word.text(this.english);
+				word.on("click", () => {
+					setFocusWord(this);
+				});
+				this.word = word;
+				row.append(word);
+				const interpretation = $('<td>');
+				interpretation.text(this.chinese);
+				interpretation.css("visibility", "hidden")
+				this.interpretation = interpretation;
+				row.append(interpretation);
+				return row;
+			}
+
+			select() {
+				if (this.word) {
+					this.word.addClass("success");
+					this.word[0].scrollIntoView();
+				}
+			}
+
+			reset() {
+				if (this.word) {
+					this.word.removeClass("success");
+				}
+				this.hideInterpretation();
+			}
+
+			next() {
+
+				if (this.manager) {
+					const index = this.index + 1;
+					if (index < this.manager.wordList.length) {
+						setFocusWord(this.manager.wordList[index]);
+					}
+				}
+			}
+
+			pre() {
+				if (this.manager) {
+					const index = this.index - 1;
+					if (index >= 0) {
+						setFocusWord(this.manager.wordList[index]);
+					}
+				}
+			}
+
+			showInterpretation() {
+				if (this.interpretation) {
+					this.interpretation.css("visibility", "visible");
+				}
+			}
+
+			hideInterpretation() {
+				if (this.interpretation) {
+					this.interpretation.css("visibility", "hidden");
+				}
+			}
+
+			play() {
+				const voice = $('#voice');
+				voice.attr('src', wordVoiceUrl(this.english));
+				voice[0].play();
+			}
+		}
+
+		class WordSet {
+			constructor(title) {
+				this.title = title
+				this.wordList = [];
+			}
+
+			push(english, chinese) {
+				const word = new Word(this, this.wordList.length, english, chinese);
+				this.wordList.push(word);
+			}
+
+			generate() {
+				const table = $('<table>');
+				table.addClass('table');
+				table.addClass('table-bordered');
+				const caption = $('<caption>');
+				caption.addClass('text-center');
+				caption.append($('<h3>').text(this.title));
+				table.append(caption);
+				const thead = $('<tr>');
+				thead.addClass('active');
+				thead.append($('<td>').text('序号'));
+				thead.append($('<td>').text('单词'));
+				thead.append($('<td>').text('释义'))
+				table.append(thead);
+				for (const word of this.wordList) {
+					table.append(word.generate());
+				}
+				return table;
+			}
+		}
+		$(document).keydown(keyHandle);
+		function keyHandle(e) {
+			if (focusWord) {
+				var e = window.event ? window.event : e;
+				switch (e.keyCode) {
+					case 38:
+						//up
+						e.preventDefault();
+						focusWord.pre();
+						break;
+					case 40:
+						//down
+						e.preventDefault();
+						focusWord.next();
+						break;
+					case 39:
+						//right
+						focusWord.showInterpretation();
+						break;
+					case 37:
+						//left
+						focusWord.hideInterpretation();
+						break;
+					case 13:
+						//
+						focusWord.play();
+
+				}
+			}
+
+		}
+
+	</script>
+</head>
+
+<body>
+
+	<input id='data_file' type='file' onchange="onLoadFiles(this.files);" />
+	<audio id='voice'></audio>
+	<script>
+		function onLoadFiles(files) {
+			var reader = new FileReader();
+			reader.onload = function (e) {
+				wordData = [];
+				focusWord = null;
+				const container = $('#container');
+				container.empty();
+				var fileLines = e.target.result.split("\r\n");
+				for (const line of fileLines) {
+					if(line==""){
+						continue;
+					}
+					const split = line.indexOf(',')
+					if (split == line.length - 1) {
+						const title = line.substr(0, split);
+						wordData.push(new WordSet(title));
+					} else {
+						if(0==wordData.length){
+							wordData.push(new WordSet(""));
+						}
+						const english = line.substr(0, split);
+						const chinese = line.substr(split + 1);
+						wordData[wordData.length - 1].push(english, chinese);
+					}
+				}
+				console.log(wordData);
+				if (wordData) {
+
+					for (const wordSet of wordData) {
+						container.append(wordSet.generate());
+					}
+				}
+
+			}
+			reader.readAsText(files[0]);
+		}
+	</script>
+
+
+
+	<div id="container" class="container"></div>
+
+
+</body>
+
+</html>
